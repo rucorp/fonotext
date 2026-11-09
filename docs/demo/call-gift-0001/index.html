@@ -218,7 +218,7 @@ caption{text-align:left;color:var(--muted);padding:12px}.table-scroll{max-width:
 .fxa-seg.is-playing .fxa-time{color:var(--fxa-accent)}
 .fxa-speaker{font-weight:650;margin-right:4px}
 @media (max-width:520px){.fxa-wave{height:38px}}
-@media print{.fxa-transcript{max-height:none;overflow:visible}}
+@media print{.fxa-player,.fxa-wave{display:none}.fxa-transcript{max-height:none;overflow:visible}}
 </style>
       <style>
 
@@ -783,6 +783,7 @@ function focusPhrase(id){
   reveal(el);
 }
 document.addEventListener("click", function(ev){
+  if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button) { return; }
   var target = ev.target;
   if (!target || !target.closest) { return; }
   if (wave && wave.contains(target)){
