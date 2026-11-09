@@ -9,7 +9,12 @@
 в страницу один раз, без серверного рендера.
 
     python3 tools/build-audio-timeline.py --wav docs/demo/call-gift-0001/call.wav
-    python3 tools/build-audio-timeline.py --html     # только разметка
+    python3 tools/build-audio-timeline.py --from-wav docs/demo/call-gift-0001/call.wav
+    python3 tools/build-audio-timeline.py --from-wav call.wav --segments-json segments.json
+
+--segments-json принимает файл вида {"duration": 28.6, "segments": [{"start", "end", "role",
+"text"}]} — расписание реальной записи; тогда разметка строится по нему, а не по
+встроенному синтетическому таймингу. Пики волны всегда считаются из wav (--from-wav).
 
 Зависимостей нет — стандартная библиотека.
 """
@@ -17,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import array
+import json
 import math
 import random
 import struct
@@ -86,7 +92,7 @@ def peaks(path: Path) -> list:
         return [value / top for value in values[:WAVE_BUCKETS]]
 
 
-def wave_svg(levels: list) -> str:
+def wave_svg(levels: list, duration: float) -> str:
     """Одна полоса: два пути (база и прогресс), без подписей и легенды."""
     middle, half_max = WAVE_HEIGHT / 2.0, WAVE_HEIGHT / 2.0 - 1.5
     step = WAVE_WIDTH / float(len(levels))
@@ -95,11 +101,16 @@ def wave_svg(levels: list) -> str:
         half = 0.75 + level * half_max
         commands.append('M%.1f %.1fV%.1f' % (step * (index + 0.5), middle - half, middle + half))
     path = ''.join(commands)
-    return ('<div class="fxa-wave" data-duration="%d">'
+    return ('<div class="fxa-wave" data-duration="%s">'
             '<svg viewBox="0 0 %d %d" preserveAspectRatio="none" aria-hidden="true" focusable="false">'
             '<path class="fxa-wave-base" d="%s"/>'
             '<path class="fxa-wave-played" d="%s"/></svg></div>'
-            % (DURATION, WAVE_WIDTH, WAVE_HEIGHT, path, path))
+            % (num_text(duration), WAVE_WIDTH, WAVE_HEIGHT, path, path))
+
+
+def num_text(value: float) -> str:
+    text = ('%.1f' % value).rstrip('0').rstrip('.')
+    return text
 
 
 def clock(value: float) -> str:
@@ -107,10 +118,10 @@ def clock(value: float) -> str:
 
 
 LANES = (('op', 'Оператор'), ('cl', 'Клиент'))
-MARKS = ((31.0, 'danger', 'seg-3'), (51.0, 'accent', 'seg-4'))
+MARKS = (('seg-3', 'danger'), ('seg-4', 'accent'))
 
 
-def dialog_html() -> str:
+def dialog_html(segments: tuple, duration: float) -> str:
     """Таймлайн реплик — HTML, а не SVG.
 
     Дорожки лежат в обычных блоках, реплики позиционируются процентами: на узком
@@ -118,33 +129,63 @@ def dialog_html() -> str:
     масштабировании до 342 px превращал текст в 3–4 пикселя.
     """
     def percent(value: float) -> str:
-        return ('%.2f' % (value / DURATION * 100)).rstrip('0').rstrip('.')
+        return ('%.2f' % (value / duration * 100)).rstrip('0').rstrip('.')
 
-    parts = ['<div class="fxa-chart" role="group" aria-label="Таймлайн диалога: 5 реплик, %s">'
-             % clock(DURATION)]
+    parts = ['<div class="fxa-chart" role="group" aria-label="Таймлайн диалога: %d реплик, %s">'
+             % (len(segments), clock(duration))]
+    marks = []
+    for target, kind in MARKS:
+        if 1 <= int(target.split('-')[1]) <= len(segments):
+            marks.append((segments[int(target.split('-')[1]) - 1][0], kind, target))
     for role, label in LANES:
         bars = [(start, end, index) for index, (start, end, seg_role, _)
-                in enumerate(SEGMENTS, 1) if seg_role == role]
-        marks = [(at, kind, target) for at, kind, target in MARKS
-                 if target in ('seg-%d' % index for _, _, index in bars)]
+                in enumerate(segments, 1) if seg_role == role]
         parts.append('<div class="fxa-lane"><span class="fxa-lane-name">%s</span>'
                      '<div class="fxa-rail">' % label)
         for at, kind, target in marks:
-            parts.append('<a class="fxa-hit fxa-mark fxa-mark--%s" href="#%s" data-start="%g" '
-                         'style="left:%s%%"><span class="fxa-sr">Находка на %s — слушать '
-                         'с этого места</span></a>'
-                         % (kind, target, at, percent(at), clock(at)))
+            if target in ('seg-%d' % index for _, _, index in bars):
+                parts.append('<a class="fxa-hit fxa-mark fxa-mark--%s" href="#%s" data-start="%s" '
+                             'style="left:%s%%"><span class="fxa-sr">Находка на %s — слушать '
+                             'с этого места</span></a>'
+                             % (kind, target, num_text(at), percent(at), clock(at)))
         for start, end, index in bars:
-            parts.append('<a class="fxa-hit fxa-bar fxa-bar--%s" href="#seg-%d" data-start="%g" '
-                         'data-end="%g" style="left:%s%%;width:%s%%"><span class="fxa-sr">'
+            parts.append('<a class="fxa-hit fxa-bar fxa-bar--%s" href="#seg-%d" data-start="%s" '
+                         'data-end="%s" style="left:%s%%;width:%s%%"><span class="fxa-sr">'
                          'Реплика %s — %s, %s. Слушать с этого места</span></a>'
-                         % (role, index, start, end, percent(start), percent(end - start),
+                         % (role, index, num_text(start), num_text(end), percent(start), percent(end - start),
                             clock(start), clock(end), label.lower()))
         parts.append('</div></div>')
+    axis = axis_marks(duration)
     parts.append('<div class="fxa-axis">%s</div>'
-                 % ''.join('<span>%s</span>' % clock(value) for value in (0, 20, 40, 60, 80)))
+                 % ''.join('<span>%s</span>' % clock(value) for value in axis))
     parts.append('</div>')
     return ''.join(parts)
+
+
+def axis_marks(duration: float) -> tuple:
+    """Подписи оси: ноль, круглый шаг (5–10 с) и итоговая длительность."""
+    step = 10 if duration > 40 else 5
+    values = [value for value in range(0, int(duration), step) if value]
+    return tuple([0] + values + [round(duration, 1)]) if values else (0, round(duration, 1))
+
+
+def transcript_html(segments: tuple) -> str:
+    speakers = {'op': 'Оператор', 'cl': 'Клиент'}
+    parts = []
+    for index, (start, end, role, text) in enumerate(segments, 1):
+        parts.append('<p class="fxa-seg" id="seg-%d" data-start="%s" data-end="%s">'
+                     '<a class="fxa-time" href="#seg-%d" data-start="%s">%s</a>'
+                     '<b class="fxa-speaker">%s</b> %s</p>'
+                     % (index, num_text(start), num_text(end), index, num_text(start),
+                        clock(start), speakers[role], text))
+    return ''.join(parts)
+
+
+def load_segments_json(path: Path) -> dict:
+    data = json.loads(path.read_text())
+    segments = tuple((seg['start'], seg['end'], seg['role'], seg['text'])
+                     for seg in data['segments'])
+    return {'segments': segments, 'duration': float(data['duration'])}
 
 
 def main() -> int:
@@ -152,20 +193,27 @@ def main() -> int:
     parser.add_argument('--wav', default=None, help='куда положить демо-запись')
     parser.add_argument('--from-wav', default=None, metavar='PATH',
                         help='взять готовый wav и напечатать разметку волны по нему')
+    parser.add_argument('--segments-json', default=None, metavar='PATH',
+                        help='JSON с расписанием реплик: duration и segments (start, end, role, text)')
     parser.add_argument('--html', action='store_true',
                         help='напечатать разметку: волна (SVG) и таймлайн (HTML)')
     args = parser.parse_args()
+    timing = {'segments': SEGMENTS, 'duration': DURATION}
+    if args.segments_json:
+        timing = load_segments_json(Path(args.segments_json))
+    wav_path = Path(args.from_wav) if args.from_wav else (
+        Path(args.wav) if args.wav else Path('docs/demo/call-gift-0001/call.wav'))
     if args.from_wav:
-        print(wave_svg(peaks(Path(args.from_wav))))
+        print(wave_svg(peaks(Path(args.from_wav)), timing['duration']))
     if args.wav:
         made = make_wav(Path(args.wav))
         levels = peaks(made['path'])
         print('wav:', made['path'], made['path'].stat().st_size, 'bytes',
               '| пиков: %d, максимум: %.2f' % (len(levels), max(levels)))
     if args.html:
-        wav_path = Path(args.wav) if args.wav else Path('docs/demo/call-gift-0001/call.wav')
-        print(wave_svg(peaks(wav_path)))
-        print(dialog_html())
+        print(wave_svg(peaks(wav_path), timing['duration']))
+        print(dialog_html(timing['segments'], timing['duration']))
+        print(transcript_html(timing['segments']))
     return 0
 
 
