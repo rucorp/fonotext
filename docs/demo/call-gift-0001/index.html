@@ -887,7 +887,10 @@ if (box && box.addEventListener){
 }
 collect();
 if (audio){
-  audio.addEventListener("timeupdate", schedule);
+  audio.addEventListener("timeupdate", function(){
+    /* в скрытой вкладке rAF не тикает — обновляем время/aria напрямую */
+    if (document.hidden) { paint(); } else { schedule(); }
+  });
   audio.addEventListener("seeked", schedule);
   audio.addEventListener("loadedmetadata", function(){
     if (pendingSeek){
