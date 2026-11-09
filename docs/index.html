@@ -270,6 +270,14 @@ document.head.appendChild(s);})();
 .fxa-clock b{color:var(--fxa-text);font-weight:600}
 .fxa-clock-total{white-space:nowrap}
 .fxa-caption{font-size:12px;color:var(--fxa-muted);margin:8px 0 0}
+/* Механика briix (site/assets/css/main.css, origin/arena/180edf42): левая колонка
+   hero залипает под шапкой, карточка звонка идёт обычным потоком — при скролле
+   страницы видны все тексты, ничего не обрезается. Только десктоп ≥1081px. */
+@media (min-width:1081px){
+  .hero-copy{position:sticky;top:calc(81px + 28px)}
+  /* коробка расшифровки на десктопе раскрывается целиком — листается сама карточка */
+  .fxa-transcript{max-height:none;overflow:visible}
+}
 .fxa-wave{position:relative;flex:1 1 auto;min-width:0;height:44px;padding:0 6px;
  box-sizing:border-box;background:var(--fxa-panel);border:1px solid var(--fxa-line);border-radius:12px;
  cursor:pointer;outline:none}
@@ -364,8 +372,8 @@ document.head.appendChild(s);})();
                       <!-- ===== Hero ===== -->
                       <section style="background: #0B1220; color: #FFFFFF; padding: 40px 24px 48px">
                         <div
-                          style="max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 56px; align-items: center">
-                          <div style="flex: 1 1 480px; min-width: 0">
+                          style="max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 56px; align-items: flex-start">
+                          <div class="hero-copy" style="flex: 1 1 480px; min-width: 0">
                             <div
                               style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #A8B3C7; border: 1px solid #26324A; border-radius: 999px; padding: 6px 12px; margin-bottom: 24px">
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F2A93B" stroke-width="2" aria-hidden="true"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/></svg>Данные обрабатываются и хранятся только в РФ · 152-ФЗ
