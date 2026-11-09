@@ -150,9 +150,13 @@ def dialog_html() -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description='Демо-блок плеера и таймлайна для сайта')
     parser.add_argument('--wav', default=None, help='куда положить демо-запись')
+    parser.add_argument('--from-wav', default=None, metavar='PATH',
+                        help='взять готовый wav и напечатать разметку волны по нему')
     parser.add_argument('--html', action='store_true',
                         help='напечатать разметку: волна (SVG) и таймлайн (HTML)')
     args = parser.parse_args()
+    if args.from_wav:
+        print(wave_svg(peaks(Path(args.from_wav))))
     if args.wav:
         made = make_wav(Path(args.wav))
         levels = peaks(made['path'])
