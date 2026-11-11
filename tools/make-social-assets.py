@@ -13,6 +13,7 @@
     icon-192.png, icon-512.png, apple-touch-icon.png — иконки сайта
 
 Запуск:  python3 tools/make-social-assets.py
+Для превью нужен Playwright (установка — README, «Продвижение и визуалы»).
 Требуется Pillow и шрифты DejaVu (обычно есть в Linux). Текст правится в TEXTS.
 """
 
@@ -276,11 +277,9 @@ def save_icons() -> None:
 
 def main() -> None:
     os.makedirs(SOCIAL, exist_ok=True)
-    save_og()
-    save_square()
-    save_stories()
-    save_widescreen(os.path.join(SOCIAL, "vk-cover-1590x400.png"), 1590, 400)
-    save_widescreen(os.path.join(SOCIAL, "linkedin-1584x396.png"), 1584, 396, big=True)
+    # OG и скриншоты обновляет браузерный генератор, не затираем их старыми макетами.
+    import subprocess
+    subprocess.run(["bash", os.path.join(ROOT, "tools/og/render-og.sh")], check=True)
     save_quote()
     save_icons()
     for f in sorted(os.listdir(DOCS)):

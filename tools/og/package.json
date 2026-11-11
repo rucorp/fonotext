@@ -1,0 +1,6 @@
+{
+  "name": "fonotext-previews",
+  "private": true,
+  "scripts": { "render": "node render-previews.mjs" },
+  "dependencies": { "playwright": "1.61.1" }
+}
